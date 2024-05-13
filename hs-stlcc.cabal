@@ -1,0 +1,55 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.36.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:           hs-stlcc
+version:        0.0.1
+build-type:     Simple
+
+library
+  exposed-modules:
+      CPrim
+      STLC.Def
+      STLC.Load
+      STLC.Term
+      STLC.Tok
+      STLC.Type
+      Util
+      Util.CFG
+      Util.Common
+      Util.Happy
+      Util.Num
+      Util.P4
+      Util.P4.Char
+      Util.P4.P4
+      Util.Pointed
+      Util.Recurse
+      Util.Sequence
+      Util.State
+      Util.String
+      Util.Turing
+  other-modules:
+      Paths_hs_stlcc
+  hs-source-dirs:
+      lib
+  default-extensions:
+      BlockArguments
+      GADTs
+      GHC2021
+      UnicodeSyntax
+  build-tools:
+      alex
+    , happy
+  build-depends:
+      array
+    , base
+    , bluefin
+    , bluefin-internal
+    , containers
+    , optics
+    , optics-core
+    , optics-extra
+    , optics-th
+  default-language: Haskell2010

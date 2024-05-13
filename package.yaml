@@ -1,0 +1,11 @@
+name: hs-stlcc
+version: 0.0.1
+
+default-extensions: [ BlockArguments, GADTs, GHC2021, UnicodeSyntax ]
+
+dependencies: [ array, base, bluefin, bluefin-internal, containers, optics, optics-core, optics-extra, optics-th ]
+
+build-tools: [ alex, happy ]
+
+library:
+  source-dirs: [ lib ]
