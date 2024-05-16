@@ -11,22 +11,6 @@ import           Data.Set.Optics
 import           Optics
 import           Util
 
--- | Type environments
-class (AsEmpty env) ⇒ Env env a | env → a where
-  isTopLevel ∷ String → env → Maybe (Ty a)
-  tyOf ∷ String → env → Maybe (Ty a)
-  pushN ∷ [(String, Ty a)] → env → env
-  push ∷ String → Ty a → env → env
-  push x ty = pushN [(x, ty)]
-  pushTopN ∷ [(String, Ty a)] → env → env
-  pushTop ∷ String → Ty a → env → env
-  pushTop x ty = pushTopN [(x, ty)]
-  vars ∷ env → [String]
-  mapEnv ∷ (String → Ty a → Ty a) → env → env
-  update ∷ String → Fn (Ty a) (Ty a) → env → env
-
-type Frame a = [(String, Ty a)]
-
 -- | Type representations
 type TyF ∷ (Type → Type) → Type → Type
 data TyF f r where
@@ -70,10 +54,30 @@ deriving instance
   )
   ⇒ Show (TyF f a)
 
-type Ty ∷ Type → Type
-type Ty ty = Fix (TyF (Pair ty))
+-- | Type environments
+class (AsEmpty env) ⇒ Env env a | env → a where
+  isTopLevel ∷ String → env → Maybe (Ty a)
+  infer ∷ String → env → Maybe (Ty a)
+  pushN ∷ [(String, Ty a)] → env → env
+  push ∷ String → Ty a → env → env
+  push x ty = pushN [(x, ty)]
+  pushTopN ∷ [(String, Ty a)] → env → env
+  pushTop ∷ String → Ty a → env → env
+  pushTop x ty = pushTopN [(x, ty)]
+  vars ∷ env → [String]
+  mapEnv ∷ (String → Ty a → Ty a) → env → env
+  update ∷ String → Fn (Ty a) (Ty a) → env → env
 
-instance Env [Frame a] a where
+-- | a function frame
+type Frame a = [(String, Ty a)]
+
+-- | type environment
+type TyEnv a = [Frame a]
+
+type Ty ∷ Type → Type
+type Ty ty = Fix (TyF (Note ty))
+
+instance Env (TyEnv a) a where
   isTopLevel x = fix \rec → \case
     fr :< Empty → ifindOf (folded % ifolded) (\x' → const $ x' == x) fr <&> view _2
     fr :< frs
@@ -81,7 +85,7 @@ instance Env [Frame a] a where
       | otherwise → rec frs
     _other → Nothing
 
-  tyOf x = fix \rec → \case
+  infer x = fix \rec → \case
     fr :< frs
       | Just (_, ty) ← ifindOf (folded % ifolded) (\x' → const $ x' == x) fr → Just ty
       | otherwise → rec frs
@@ -156,11 +160,11 @@ prim ∷ a → String → Maybe (Ty a)
 prim a x
   | elemOf folded x $
       setOf folded ["unit", "byte", "char", "short", "int", "float", "string"] =
-      Just $ inject $ PrimF $ MkPair a x
+      Just $ inject $ PrimF $ MkNote a x
   | otherwise = Empty
 
 pattern Prim
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → String → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → String → ty
 pattern Prim a str ← (project @f → PrimF (view coerced → (a, str)))
   where
     Prim a str
@@ -168,48 +172,60 @@ pattern Prim a str ← (project @f → PrimF (view coerced → (a, str)))
       | otherwise = error $ unwords [str, " is not a primitive type"]
 
 pattern Var
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → String → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → String → ty
 pattern Var a str ← (project @f → VarF (view coerced → (a, str)))
   where
-    Var a str = inject $ VarF $ MkPair a str
+    Var a str = inject $ VarF $ MkNote a str
 
 pattern Fun
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → [ty] → ty → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → [ty] → ty → ty
 pattern Fun a args ret ← (project @f → FunF (view coerced → (a, (args, ret))))
   where
-    Fun a args ret = inject $ FunF $ MkPair a (args, ret)
+    Fun a args ret = inject $ FunF $ MkNote a (args, ret)
 
 pattern Variant
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → [(String, ty)] → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → [(String, ty)] → ty
 pattern Variant a row ← (project @f → VariantF (view coerced → (a, row)))
   where
-    Variant a row = inject $ VariantF $ MkPair a row
+    Variant a row = inject $ VariantF $ MkNote a row
 
 pattern Record
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → [(String, ty)] → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → [(String, ty)] → ty
 pattern Record a row ← (project @f → RecordF (view coerced → (a, row)))
   where
-    Record a row = inject $ RecordF $ MkPair a row
+    Record a row = inject $ RecordF $ MkNote a row
 
 pattern Exists
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → String → ty → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → String → ty → ty
 pattern Exists a str ty ←
   (project @f → ExistsF (view coerced → (a, (str, ty))))
   where
-    Exists a str ty = inject $ ExistsF $ MkPair a (str, ty)
+    Exists a str ty = inject $ ExistsF $ MkNote a (str, ty)
 
 pattern Array
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → ty → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → ty → ty
 pattern Array a ty ← (project @f → ArrayF (view coerced → (a, ty)))
   where
-    Array a ty = inject $ ArrayF $ MkPair a ty
+    Array a ty = inject $ ArrayF $ MkNote a ty
 
 pattern Mu
-  ∷ ∀ a f ty. (f ~ TyF (Pair a), ty ~ Ty a, View f ty) ⇒ a → String → ty → ty
+  ∷ ∀ a f ty. (f ~ TyF (Note a), ty ~ Ty a, View f ty) ⇒ a → String → ty → ty
 pattern Mu a str ty ←
   (project @f → MuF (view _1 &&& view _2 → (a, (str, ty))))
   where
-    Mu a str ty = inject $ MuF $ MkPair a (str, ty)
+    Mu a str ty = inject $ MuF $ MkNote a (str, ty)
+
+fromPrim
+  ∷ ( Ann (f ()) a
+    , Ann (f Word8) a
+    , Ann (f Char) a
+    , Ann (f Int) a
+    , Ann (f Float) a
+    , Ann (f String) a
+    )
+  ⇒ CPrim f
+  → Ty a
+fromPrim = fromC
 
 fromC
   ∷ ( Ann (f ()) a
@@ -243,15 +259,17 @@ rename from to = cata \case
     | otherwise → inject $ MuF f
   ty → inject ty
 
+-- | collect binders
 binders ∷ Ty a → [String]
 binders = cata \case
   ExistsF f@(view _2 → (b, bs)) → b :< bs
-  MuF f@(view _2 → (b, bs)) → b :< bs
+  MuF (view _2 → (b, bs)) → b :< bs
   ty → foldOf folded ty
 
 newBinder ∷ Ty a → String
 newBinder = flip withBinder id
 
+-- | return a fresh binder from a given type
 withBinder ∷ Ty a → (String → r) → r
 withBinder ty@(binders → used) k =
   names
@@ -261,28 +279,29 @@ withBinder ty@(binders → used) k =
   where
     names = fmap show ['a' .. 'z'] <> do i ← [0 ..]; return ("t" <> show i)
 
-roll ∷ ∀ a. (Eq a) ⇒ Ty a → Ty a → Ty a
-roll rty ty@(view ann &&& newBinder → (a, x)) = Mu a x (cata alg rty)
+roll ∷ ∀ a f. (Eq a, f ~ Note a) ⇒ Ty a → Ty a → Ty a
+roll rty@(project → rtyF) ty@(view ann &&& newBinder → (a, x)) = Mu a x (cata alg ty)
   where
-    alg ∷ TyF (Pair a) (Ty a) → Ty a
+    alg ∷ TyF f (Ty a) → Ty a
     alg = \case
       rty'
-        | rty' == project rty → inject $ VarF (Pair (a, x))
+        | rty' == rtyF → inject $ VarF (MkNote a x)
         | otherwise → inject rty'
 
 unroll ∷ ∀ a. (Eq a) ⇒ Ty a → Ty a → Ty a
-unroll rty xrty = cata alg rty
+unroll rty = cata alg
   where
     alg = \case
-      rty'@(MuF (Pair (a, (x, body)))) | rty' == project rty → rewrite body x rty
+      rty'@(MuF (MkNote a (x, body))) | rty' == project rty → rewrite rty x body
       rty' → inject rty'
 
-rewrite ∷ ∀ a. Ty a → String → Ty a → Ty a
-rewrite rty x body = para alg body
+-- | rewrite every fv @x@ into @rty@
+rewrite ∷ ∀ a f. (f ~ Note a) ⇒ Ty a → String → Ty a → Ty a
+rewrite rty x = para phi
   where
-    alg ∷ Fn (TyF (Pair a) (Ty a, Fix (TyF (Pair a)))) (Ty a)
-    alg = \case
-      VarF f@(view _2 → x')
+    phi ∷ Fn (TyF f (Ty a, Ty a)) (Ty a)
+    phi = \case
+      VarF (view _2 → x')
         | x' == x → rty
       ExistsF f@(view (_2 % _1) &&& view (_2 % _2) → (x', (b0, _)))
         | x == x' → inject $ ExistsF $ f & (_2 % _2) .~ b0
@@ -290,16 +309,18 @@ rewrite rty x body = para alg body
         | x == x' → inject $ MuF $ f & (_2 % _2) .~ b0
       tyF → inject $ view _2 <$> tyF
 
-expand ∷ ∀ a. [(String, Ty a)] → Ty a → Ty a
-expand defs = cata \case
+-- | Expand variables found in a type frame
+expand ∷ ∀ a. Frame a → Ty a → Ty a
+expand frame = cata \case
   VarF (view _2 → x)
-    | Just (_, ty) ← ifindOf (folded % ifolded) (\x' → const (x' == x)) defs →
+    | Just (_, ty) ← ifindOf (folded % ifolded) (\x' → const (x' == x)) frame →
         ty
   tyF → inject tyF
 
-fvs ∷ ∀ a. Ty a → [String]
+-- | Free variables of a type
+fvs ∷ ∀ a. Ty a → Set String
 fvs = cata \case
-  VarF (view _2 → x) → pure x
-  ExistsF (view _2 → (x, xs)) → xs \\ [x]
-  MuF (view _2 → (x, xs)) → xs \\ [x]
+  VarF (view _2 → x) → setOf folded [x]
+  ExistsF (view _2 → (x, xs)) → sans x xs
+  MuF (view _2 → (x, xs)) → sans x xs
   tyF → foldOf folded tyF

@@ -26,8 +26,8 @@ cata alg = fix \rec → unFix .> fmap rec .> alg
 cataM ∷ (Monad m, Traversable f) ⇒ FnM (f a) m a → Fix f → m a
 cataM algM = fix \rec → (unFix .> traverseOf traversed rec) >.> algM
 
-para ∷ (Functor f) ⇒ Fn (f (a, Fix f)) a → Fix f → a
-para phi = fix \rec → unFix .> fmap (rec &&& id) .> phi
+para ∷ (Functor f) ⇒ Fn (f (Fix f, a)) a → Fix f → a
+para phi = fix \rec → unFix .> fmap (id &&& rec) .> phi
 
 ana ∷ (Functor f) ⇒ Fn a (f a) → a → Fix f
 ana coalg = fix \rec → coalg .> fmap rec .> Fix

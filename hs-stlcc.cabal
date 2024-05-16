@@ -24,7 +24,6 @@ library
       Util.P4
       Util.P4.Char
       Util.P4.P4
-      Util.Pointed
       Util.Recurse
       Util.Sequence
       Util.State

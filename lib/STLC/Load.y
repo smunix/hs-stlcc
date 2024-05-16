@@ -59,12 +59,12 @@ import Util
 Pgm : Pgm Def { $2 : $1 }
     | {- nothing -} { [] }
 
-Def : sym hasty Type '=' Term ';' {% Happy.reduce 6 \spn -> Def.Named (MkPair spn ($1, Empty, $3, $5))}
-    | sym hasty Type FnDef '=' Term ';' {% Happy.reduce 7 \spn -> Def.Named (MkPair spn ($1, inv $4, $3, $6))}
-    | extern sym hasty Type ';' {% Happy.reduce 5 \spn -> Def.Extrn (MkPair spn ($2, $4)) }
-    | type sym '=' Type ';' {% Happy.reduce 5 \spn -> Def.Alias (MkPair spn ($2, $4)) }
+Def : sym hasty Type '=' Term ';' {% Happy.reduce 6 \spn -> Def.Named (MkNote spn ($1, Empty, $3, $5))}
+    | sym hasty Type FnDef '=' Term ';' {% Happy.reduce 7 \spn -> if $1 == (view _1 $4) then Def.Named (MkNote spn ($1, inv (view _2 $4), $3, $6)) else error $ unwords ["found different names in definition of ", $1, " vs ", (view _1 $4) ] }
+    | extern sym hasty Type ';' {% Happy.reduce 5 \spn -> Def.Extrn (MkNote spn ($2, $4)) }
+    | type sym '=' Type ';' {% Happy.reduce 5 \spn -> Def.Alias (MkNote spn ($2, $4)) }
 
-FnDef : sym '(' Args ')' {% Happy.reduce 4 \spn -> $3 }
+FnDef : sym '(' Args ')' {% Happy.reduce 4 \spn -> ($1, $3) }
 
 Args : Args ',' sym {% Happy.reduce 3 \spn -> $3 :< $1 }
      | sym {% Happy.reduce 1 \spn -> [$1] }

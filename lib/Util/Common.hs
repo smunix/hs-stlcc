@@ -1,7 +1,11 @@
+{-# LANGUAGE AllowAmbiguousTypes    #-}
+{-# LANGUAGE DefaultSignatures      #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase             #-}
 {-# LANGUAGE PatternSynonyms        #-}
+{-# LANGUAGE TypeFamilies           #-}
 {-# LANGUAGE UndecidableInstances   #-}
+{-# LANGUAGE ViewPatterns           #-}
 
 module Util.Common (module Util.Common, module X) where
 
@@ -9,13 +13,19 @@ import           Control.Applicative as X
 import           Control.Arrow       as X
 import           Control.Monad       as X
 import           Data.Function       as X
+import qualified Data.IntMap.Optics  as IntMap
+import           Data.IntMap.Strict  (IntMap)
 import           Data.Kind           as X
 import           Data.List           as X hiding (group, groupBy, uncons,
                                            unsnoc)
+import           Data.Map            as X (Map)
+import           Data.Map.Optics     as X (toMapOf)
 import           Data.Maybe          as X
 import           Data.Semigroup
+import           Data.Set            as X (Set)
+import           Data.Set.Optics     as X (setOf)
 import           Data.Word           as X
-import           GHC.Generics
+import           GHC.Generics        hiding (to)
 import           GHC.TypeLits
 import           Optics              as X
 
@@ -24,6 +34,36 @@ type Pos = (Int, Int)
 class Inv a where
   inv ∷ a → a
 
+type family MapOfT i where
+  MapOfT Int = IntMap
+  MapOfT i = Map i
+
+class MapOf_ m i a where
+  mapOf_
+    ∷ (k `Is` A_Fold, is `HasSingleIndex` i, Ord i) ⇒ Optic' k is s a → s → m a
+  default mapOf_
+    ∷ (k `Is` A_Fold, is `HasSingleIndex` i, Ord i, m ~ Map i)
+    ⇒ Optic' k is s a
+    → s
+    → m a
+  mapOf_ = toMapOf
+
+instance MapOf_ IntMap Int a where
+  mapOf_
+    ∷ (k `Is` A_Fold, is `HasSingleIndex` i, i ~ Int, m ~ IntMap)
+    ⇒ Optic' k is s a
+    → s
+    → m a
+  mapOf_ = IntMap.toMapOf
+
+mapOf
+  ∷ ∀ k is i s a
+   . (Is k A_Fold, is `HasSingleIndex` i, Ord i, MapOf_ (MapOfT i) i a)
+  ⇒ Optic' k is s a
+  → s
+  → MapOfT i a
+mapOf o s = mapOf_ @(MapOfT i) o s
+
 class NameOf a where
   nameOf ∷ a → String
 
@@ -31,39 +71,47 @@ class NameOf a where
 class Ann f a | f → a where
   ann ∷ Lens' f a
   anns ∷ Getter f [a]
+  anns = to (view ann .> pure)
+
+instance Ann (Note a x) a where
+  ann = _1
 
 data Flag (s ∷ Symbol)
   = Off
   | On
   deriving (Show)
 
-newtype Pair a b = Pair (a, b)
+newtype Note a b = Note (a, b)
   deriving
     ( Applicative
-    , Eq
     , Foldable
     , Functor
     , Generic
     , Monad
-    , Ord
     , Show
     )
+
+instance (Eq a) ⇒ Eq (Note n a) where
+  (view _2 → a) == (view _2 → b) = a == b
+
+instance (Ord a) ⇒ Ord (Note n a) where
+  (view _2 → a) `compare` (view _2 → b) = a `compare` b
 
 type Fn a b = a → b
 
 type FnM a m b = a → m b
 
-instance Field1 (Pair a b) (Pair a' b) a a' where
+instance Field1 (Note a b) (Note a' b) a a' where
   _1 =
     lens
-      (view $ coerced @(Pair a b) @(a, b) % _1)
-      (\pair a → pair & (coerced @(Pair a b) @(a, b) % _1 .~ a) & Pair)
+      (view $ coerced @(Note a b) @(a, b) % _1)
+      (\pair a → pair & (coerced @(Note a b) @(a, b) % _1 .~ a) & Note)
 
-instance Field2 (Pair a b) (Pair a b') b b' where
+instance Field2 (Note a b) (Note a b') b b' where
   _2 =
     lens
-      (view $ coerced @(Pair a b) @(a, b) % _2)
-      (\pair b → pair & (coerced @(Pair a b) @(a, b) % _2 .~ b) & Pair)
+      (view $ coerced @(Note a b) @(a, b) % _2)
+      (\pair b → pair & (coerced @(Note a b) @(a, b) % _2 .~ b) & Note)
 
 instance Field1 (Arg a b) (Arg a' b) a a'
 
@@ -77,10 +125,10 @@ instance (Cons (f a) (f a) a a, AsEmpty (f a)) ⇒ Inv (f a) where
         Empty → kont Empty
         a :< as → rec (kont <. (a :<)) as
 
-pattern MkPair ∷ a → b → Pair a b
-pattern MkPair a b ← Pair (a, b)
+pattern MkNote ∷ a → b → Note a b
+pattern MkNote a b ← Note (a, b)
   where
-    MkPair a b = Pair (a, b)
+    MkNote a b = Note (a, b)
 
 (.>) ∷ Fn a b → Fn b c → Fn a c
 (.>) = flip (.)

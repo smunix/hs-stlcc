@@ -40,6 +40,7 @@ data Tok
   | TRBrace
   | TPlus
   | TMinus
+  | TErr String
   | EoF
   deriving (Eq, Show)
 
