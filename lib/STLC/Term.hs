@@ -8,26 +8,60 @@
 module STLC.Term where
 
 import           CPrim
-import           STLC.Type (Ty)
 import qualified STLC.Type as Ty
+import           STLC.Type (Ty)
 import           Util
 
+import qualified Data.Set  as Set
+
+-- | The 'TermF' data type represents different forms of terms in our language.
 data TermF ty f r where
-  PrimF ∷ f (CPrim f) → TermF ty f r
-  VarF ∷ f String → TermF ty f r
-  RollF ∷ f (Ty ty, r) → TermF ty f r
-  UnrollF ∷ f (Ty ty, r) → TermF ty f r
-  AppF ∷ f (r, [r]) → TermF ty f r
-  LetF ∷ f (String, r, r) → TermF ty f r
-  VariantF ∷ f (String, r, [(String, Ty ty)]) → TermF ty f r
-  CaseF ∷ f (r, [(String, String, r)]) → TermF ty f r
-  RecordF ∷ f [(String, r)] → TermF ty f r
-  ProjectF ∷ f (r, String) → TermF ty f r
-  PackF ∷ f (r, Ty ty) → TermF ty f r
-  UnpackF ∷ f (r, String, String, r) → TermF ty f r
-  ArrayF ∷ f [r] → TermF ty f r
-  AllocF ∷ f (Ty ty, r) → TermF ty f r
-  IndexF ∷ f (r, r) → TermF ty f r
+  -- | 'PrimF' represents a primitive constant.
+  PrimF    :: f (CPrim f) -> TermF ty f r
+
+  -- | 'VarF' represents a variable.
+  VarF     :: f String -> TermF ty f r
+
+  -- | 'RollF' represents a rolling operation which packages a value and its type.
+  RollF    :: f (Ty ty, r) -> TermF ty f r
+
+  -- | 'UnrollF' represents an unrolling operation which unpacks a value and its type.
+  UnrollF  :: f (Ty ty, r) -> TermF ty f r
+
+  -- | 'AppF' represents an application of a function to a list of arguments.
+  AppF     :: f (r, [r]) -> TermF ty f r
+
+  -- | 'LetF' represents a let-binding, introducing a new variable.
+  LetF     :: f (String, r, r) -> TermF ty f r
+
+  -- | 'VariantF' represents a variant, which is a tagged union type.
+  VariantF :: f (String, r, [(String, Ty ty)]) -> TermF ty f r
+
+  -- | 'CaseF' represents a case analysis on a variant.
+  CaseF    :: f (r, [(String, String, r)]) -> TermF ty f r
+
+  -- | 'RecordF' represents a record, which is a collection of named fields.
+  RecordF  :: f [(String, r)] -> TermF ty f r
+
+  -- | 'ProjectF' represents a projection from a record, accessing a specific field.
+  ProjectF :: f (r, String) -> TermF ty f r
+
+  -- | 'PackF' represents packing a value with its type.
+  PackF    :: f (r, Ty ty) -> TermF ty f r
+
+  -- | 'UnpackF' represents unpacking a value with its type.
+  UnpackF  :: f (r, String, String, r) -> TermF ty f r
+
+  -- | 'ArrayF' represents an array of terms.
+  ArrayF   :: f [r] -> TermF ty f r
+
+  -- | 'AllocF' represents allocation of memory for a term with a specific type.
+  AllocF   :: f (Ty ty, r) -> TermF ty f r
+
+  -- | 'IndexF' represents indexing into an array.
+  IndexF   :: f (r, r) -> TermF ty f r
+
+  -- | The 'Functor' and 'Foldable' instances are derived for 'TermF'.
   deriving (Functor, Foldable)
 
 type Term ∷ Type → Type → Type
@@ -349,15 +383,25 @@ pattern Index a arr ndx ← (project @termF → IndexF (view coerced → (a, (ar
   where
     Index a arr ndx = inject @termF $ IndexF $ MkNote a (arr, ndx)
 
--- | Free variables of a term
+
+-- | 'fvs' computes the set of free variables in a given term.
 fvs ∷ ∀ ty term. Term ty term → Set String
 fvs = cata \case
-  VarF (view _2 → x) → setOf folded [x]
-  LetF (view _2 → (x, sans x → term, body)) → setOf (folded % folded) [term, body]
-  UnpackF (view _2 → (term, x, _, sans x → body)) → setOf (folded % folded) [term, body]
-  termF → foldOf folded termF
+  -- If the term is a variable, return a set with the variable's name.
+  VarF (view _2 → x) → Set.singleton x
 
--- | type of a term
+  -- If the term is a let-binding, return the union of free variables in the term and the body,
+  -- excluding the bound variable.
+  LetF (view _2 → (x, sans x → term, body)) → Set.union term body
+
+  -- If the term is an unpack operation, return the union of free variables in the term and the body,
+  -- excluding the bound variable.
+  UnpackF (view _2 → (term, x, _, sans x → body)) → Set.union term body
+
+  -- For all other terms, recursively collect free variables.
+  termF → foldMap id termF
+
+-- | 'inferTy' infers the type of a given term.
 inferTy
   ∷ ∀ tyEnv a termF term ty
    . ( termF ~ TermF a (Note a)
@@ -370,50 +414,70 @@ inferTy
   → Term a a
   → ty
 inferTy = fix \rec tyEnv → para \case
+  -- For primitive constants, infer the type from the primitive.
   PrimF (view _2 → prim) → Ty.fromC prim
+
+  -- For variables, look up the type in the type environment.
   VarF (view _2 → x)
     | Just ty ← Ty.infer x tyEnv → ty
-    | otherwise → error $ unwords ["undefined variable: ", x]
+    | otherwise → error $ unwords ["undefined variable:", x]
+
+  -- For rolling, infer the rolled type.
   RollF (view _2 → (ty, (_, ty'))) → Ty.roll ty ty'
+
+  -- For unrolling, infer the unrolled type.
   UnrollF (view _2 → (ty, (_, ty'))) → Ty.unroll ty ty'
-  AppF (view _2 → ((_, fn), _)) -- TODO: smunix: no checks !
+
+  -- For function applications, infer the return type if the function type matches.
+  AppF (view _2 → ((_, fn), _))
     | Ty.Fun _ _ rty ← fn → rty
-    | otherwise → error $ unwords ["expected a function application"]
+    | otherwise → error "expected a function application"
+
+  -- For let-bindings, infer the type of the body in an extended type environment.
   LetF (view _2 → (x, (_, ty), (b, _))) → rec (Ty.push x ty tyEnv) b
+
+  -- For variant types, infer the type from the tag and the row type.
   VariantF (view _1 &&& view _2 → (a, (_, _, row))) → Ty.Variant a row
-  -- CaseF ∷ f (r, [(String, String, r)]) → TermF ty f r
+
+  -- For case analysis, infer the type of the branches if the scrutiny type matches.
   CaseF (view _2 → ((_, scrtnTy), headOf folded → branch))
     | Ty.Variant _ scrtnRow ← scrtnTy
     , Just (lbl, x, (term, _)) ← branch
-    , Just (_, lblTy) ←
-        ifindOf (folded % ifolded) (\str → const (str == lbl)) scrtnRow →
+    , Just (_, lblTy) ← ifindOf (folded % ifolded) (\str → const (str == lbl)) scrtnRow →
         rec (Ty.push x lblTy tyEnv) term
-    | Ty.Variant _ Empty ← scrtnTy → error $ unwords ["unsupported empty case {}"]
-    | otherwise → error $ unwords ["unsupported case"]
-  -- RecordF ∷ f [(String, r)] → TermF ty f r
+    | Ty.Variant _ Empty ← scrtnTy → error "unsupported empty case {}"
+    | otherwise → error "unsupported case"
+
+  -- For records, infer the type of each field.
   RecordF (view _1 &&& view _2 → (a, fmap (_2 %~ (view _2)) → row)) → Ty.Record a row
-  -- ProjectF ∷ f (r, String) → TermF ty f r
+
+  -- For projections, infer the type of the projected field.
   ProjectF (view _2 → ((_, recTy), lbl))
     | Ty.Record _ row ← recTy
     , Just (_, lblTy) ← ifindOf (folded % ifolded) (\x → const (x == lbl)) row →
         lblTy
-    | otherwise → error $ unwords ["projection of lbl ", lbl, " wasn't found"]
-  -- PackF ∷ f (r, Ty ty) → TermF ty f r
+    | otherwise → error $ unwords ["projection of lbl", lbl, "wasn't found"]
+
+  -- For pack, return the type directly.
   PackF (view _2 → (_, ty)) → ty
-  -- UnpackF ∷ f (r, String, String, r) → TermF ty f r
+
+  -- For unpack, infer the type of the body in an extended type environment.
   UnpackF (view _2 → ((_, existsTy), x, tv, (bdy, _)))
     | Ty.Exists _ xE xTy ← existsTy →
         rec (Ty.push x (Ty.rename xE tv xTy) tyEnv) bdy
-  -- ArrayF ∷ f [r] → TermF ty f r
+
+  -- For arrays, infer the element type.
   ArrayF (view _1 &&& view _2 → (a, ((_, ty) :< _))) → Ty.Array a ty
-  -- AllocF ∷ f (Ty ty, r) → TermF ty f r
+
+  -- For allocation, infer the array type.
   AllocF (view _1 &&& view _2 → (a, (ty, _))) → Ty.Array a ty
-  -- IndexF ∷ f (r, r) → TermF ty f r
+
+  -- For indexing, infer the element type if the array type matches.
   IndexF (view _2 → ((_, arr), (_, ndx)))
     | Ty.Array _ eTy ← arr → eTy
-    | otherwise → error $ unwords ["expected array"]
+    | otherwise → error "expected array"
 
--- | substitute a variable with a term
+-- | 'replace' substitutes a variable with a term within another term.
 replace
   ∷ ∀ tn tyn term termF ty
    . ( termF ~ TermF tn (Note tyn)
@@ -425,29 +489,45 @@ replace
   → term
   → term
 replace x0 term0 = para \case
-  -- VarF ∷ f String → TermF ty f r
+  -- Replace a variable if it matches the target variable.
   VarF (view _2 → x) | x == x0 → term0
-  -- LetF ∷ f (String, r, r) → TermF ty f r
+
+  -- Replace within let-bindings, only if the bound variable does not match the target variable.
   LetF (view _1 &&& view _2 → (tn, (x, v, b))) | x == x0 → Let tn x (v ^. _2) (b ^. _1)
-  -- CaseF ∷ f (r, [(String, String, r)]) → TermF ty f r
+
+  -- Replace within case branches, only if the bound variable does not match the target variable.
   CaseF (view _1 &&& view _2 → (tn, (scrtn, branches))) → Case tn (scrtn ^. _2) (go <$> branches)
     where
       go (lbl, x, term)
         | x == x0 = (lbl, x, term ^. _1)
         | otherwise = (lbl, x, term ^. _2)
-  -- UnpackF ∷ f (r, String, String, r) → TermF ty f r
+
+  -- Replace within unpack operations, only if the bound variable does not match the target variable.
   UnpackF (view _1 &&& view _2 → (tn, (v, vn, exists, b)))
     | x0 == vn → Unpack tn (v ^. _2) vn exists (b ^. _1)
     | otherwise → Unpack tn (v ^. _2) vn exists (b ^. _2)
+
+  -- For all other terms, recursively apply replacement.
   termF → inject $ view _2 <$> termF
 
--- | expand inner types
-expand ∷ Ty.Frame tyn → Term tyn tn → Term tyn tn
+-- | 'expand' applies type substitution to expand inner types within a term.
+expand ∷ Ty.Subst tyn → Term tyn tn → Term tyn tn
 expand subst = cata \case
+  -- Expand types within rolling operations.
   RollF (view _1 &&& view _2 → (tn, (Ty.expand subst → ty, term))) → Roll tn ty term
+
+  -- Expand types within unrolling operations.
   UnrollF (view _1 &&& view _2 → (tn, (Ty.expand subst → ty, term))) → Unroll tn ty term
+
+  -- Expand types within variant types.
   VariantF
     (view _1 &&& view _2 → (tn, (lbl, term, fmap (second (Ty.expand subst)) → row))) → Variant tn lbl term row
+
+  -- Expand types within pack operations.
   PackF (view _1 &&& view _2 → (tn, (e, Ty.expand subst → ty))) → Pack tn e ty
+
+  -- Expand types within allocation operations.
   AllocF (view _1 &&& view _2 → (tn, (Ty.expand subst → ty, term))) → Alloc tn ty term
+
+  -- For all other terms, recursively apply type expansion.
   termF → inject $ termF

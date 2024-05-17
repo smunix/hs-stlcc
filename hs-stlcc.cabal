@@ -19,6 +19,9 @@ library
       Util
       Util.CFG
       Util.Common
+      Util.Earley
+      Util.Earley.Language
+      Util.Earley.Process
       Util.Happy
       Util.Num
       Util.P4
@@ -42,7 +45,8 @@ library
       alex
     , happy
   build-depends:
-      array
+      HMap
+    , array
     , base
     , bluefin
     , bluefin-internal
