@@ -1,3 +1,5 @@
+# verbatim:
+#   cabal-version: 2.2
 name: hs-stlcc
 version: 0.0.1
 
@@ -5,7 +7,7 @@ default-extensions: [ BlockArguments, GADTs, GHC2021, UnicodeSyntax ]
 
 dependencies: [ array, base, bluefin, bluefin-internal, containers, HMap, optics, optics-core, optics-extra, optics-th ]
 
-build-tools: [ alex, happy ]
+build-tools: [ alex:alex, happy:happy ]
 
 library:
   source-dirs: [ lib ]

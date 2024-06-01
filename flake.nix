@@ -14,6 +14,9 @@
     bluefin.flake = false;
     ghcitui.url = "https://github.com/CrystalSplitter/ghcitui";
     ghcitui.flake = false;
+    all-cabal-hashes.url =
+      "github:commercialhaskell/all-cabal-hashes?ref=hackage";
+    all-cabal-hashes.flake = false;
   };
 
   nixConfig = {
@@ -34,7 +37,9 @@
       devShells = forEachSystem (system:
         let
           pkgs = nixpkgs.legacyPackages.${system};
-          hpkgs = fast pkgs.haskell.packages.ghc98 [{
+          hpkgs = fast (pkgs.haskell.packages.ghc98.override {
+            inherit (inputs) all-cabal-hashes;
+          }) [{
             modifiers = with pkgs.haskell.lib; [ disableLibraryProfiling ];
             extension = with pkgs.haskell.lib;
               hf: hp:
@@ -81,6 +86,7 @@
                       ghcid
                       # gtui
                       # ghclive
+                      happy
                       haskell-language-server
                       hpack
                       implicit-hie
@@ -92,13 +98,23 @@
                 git --version
                 hpack --version
                 hpack --force package.yaml
+
+                sed -e "s@build-tools@build-tool-depends@g" \
+                  -e "s@alex@alex:alex@g" \
+                  -e "s@happy@happy:happy@g" \
+                  -i hs-stlcc.cabal
+
+                sed -e "/alex:alex/,/happy:happy/d" \
+                  -i hs-stlcc.cabal
+
                 gen-hie --cabal &> hie.yaml
               '';
 
               processes.run.exec = "hello";
 
               scripts = {
-                loop.exec = "ghcid -W -a -c cabal repl lib:hs-stlcc";
+                loop.exec =
+                  "${pkgs.ghcid}/bin/ghcid -W -a -c cabal repl lib:hs-stlcc";
               };
 
               pre-commit.hooks = {

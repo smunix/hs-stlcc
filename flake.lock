@@ -1,5 +1,22 @@
 {
   "nodes": {
+    "all-cabal-hashes": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1717132501,
+        "narHash": "sha256-FEvJPLr91/yFIAl4zPrse8SjbAkHK1bM/lHYCv7bgv8=",
+        "owner": "commercialhaskell",
+        "repo": "all-cabal-hashes",
+        "rev": "3b2c4eb2ccd3b5cf68f50f97ac313d17c4ce2ae6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "commercialhaskell",
+        "ref": "hackage",
+        "repo": "all-cabal-hashes",
+        "type": "github"
+      }
+    },
     "bluefin": {
       "flake": false,
       "locked": {
@@ -385,11 +402,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1715385227,
-        "narHash": "sha256-BAdR2ZTV0loyS4go6hnpro5Id3C1OikZg670NElmtKg=",
+        "lastModified": 1717258601,
+        "narHash": "sha256-gMvWwxNTVDcYWEpdW1YXiA3oKaMU4dFkUmUAEo3RNNU=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "5f4abadbe1593ebb727e799815255ecfd008cbec",
+        "rev": "a66aecff8795337adf83e16be9dd070fab95c341",
         "type": "github"
       },
       "original": {
@@ -454,6 +471,7 @@
     },
     "root": {
       "inputs": {
+        "all-cabal-hashes": "all-cabal-hashes",
         "bluefin": "bluefin",
         "devenv": "devenv",
         "ghcitui": "ghcitui",
