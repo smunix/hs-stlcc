@@ -17,7 +17,7 @@ data Dom where
 data DomId where
   Rec ∷ DomId
   Val ∷ DomId
-  Hsh ∷ DomId
+  Hash ∷ DomId
 
 newtype Name (n ∷ Dom) where
   Name ∷ String → Name n
@@ -44,6 +44,9 @@ data Ty where
   Schema ∷ Schema → Ty
   deriving (Show, Eq, Ord)
 
+instance AsEmpty Ty where
+  _Empty = nearly Hole (== Hole)
+
 instance IsString (Name Col, Ty) where
   fromString = fromString .> (,Hole)
 
@@ -60,25 +63,35 @@ data Value where
   Int ∷ Int → Value
   Str ∷ String → Value
   Tbl ∷ Table → Value
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 instance IsString Value where
   fromString = Str
 
 instance Num Value where
   fromInteger = fromInteger .> Int
+  (+) ∷ Value → Value → Value
+  (+) = error "Num Value does not implement '(+)'"
+  (*) ∷ Value → Value → Value
+  (*) = error "Num Value does not implement '(*)'"
+  abs ∷ Value → Value
+  abs = error "Num Value does not implement 'abs'"
+  signum ∷ Value → Value
+  signum = error "Num Value does not implement 'signum'"
+  negate ∷ Value → Value
+  negate = error "Num Value does not implement 'negate'"
 
 newtype Record where
-  Record ∷ Map (Name Col) Value → Record
-  deriving newtype (Show)
+  Record ∷ {_fields ∷ Map (Name Col) Value} → Record
+  deriving newtype (Eq, Ord, Show, Monoid, Semigroup)
 
 data Table where
   Table
     ∷ { _description ∷ Schema
-      , _entries ∷ List Record
+      , _recordList ∷ List Record
       }
     → Table
-  deriving (Show)
+  deriving (Eq, Ord, Show)
 
 data Combine a b where
   Combine ∷ a → b → Combine a b
@@ -92,10 +105,14 @@ data Unfold b where
   Unfold ∷ Name Col → b → Unfold b
   deriving (Eq, Show)
 
+makeLenses ''Record
 makeLenses ''Schema
 makePrisms ''Value
 makePrisms ''Ty
 makeLenses ''Table
+
+instance AsEmpty Record where
+  _Empty = nearly (Record Empty) (== Record Empty)
 
 instance AsEmpty Schema where
   _Empty = nearly (MkSchema Empty) (view schema .> is _Empty)

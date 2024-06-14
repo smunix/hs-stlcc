@@ -3,11 +3,11 @@
     "all-cabal-hashes": {
       "flake": false,
       "locked": {
-        "lastModified": 1717970993,
-        "narHash": "sha256-peY9kzDTQNnPASopkUtH3DbCdMVEJN3AGB3rxtxKDIE=",
+        "lastModified": 1718370125,
+        "narHash": "sha256-uQfiy29fRc5wybrRqJZLfxm/e357lYajdQy4nOiBAbA=",
         "owner": "commercialhaskell",
         "repo": "all-cabal-hashes",
-        "rev": "87bd8ee9a735c06403d3ea4b8149ba6053ad4fa4",
+        "rev": "5657c919cfa49af7e6e33f5eef266bff1dbfdd3a",
         "type": "github"
       },
       "original": {
@@ -58,11 +58,11 @@
         "pre-commit-hooks": "pre-commit-hooks"
       },
       "locked": {
-        "lastModified": 1717917954,
-        "narHash": "sha256-2p4dWAywA85r/4zDBQt8dLUErIVSitdDMEow5xxpU0g=",
+        "lastModified": 1718364326,
+        "narHash": "sha256-EbPVqIzxmT+yycY3204pGbHPYHNif5Rp+V+9Lg3rGDo=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "8dab95bb60b6ece337450d80cc67515429652876",
+        "rev": "c26fa5ba85b96ab6cee5b0693b84e7cf92cf26a4",
         "type": "github"
       },
       "original": {
@@ -373,11 +373,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1717971428,
-        "narHash": "sha256-2GLnR7wavFoBcfUhChGO1nd+x3OEsu8W4G0oeJ6msk4=",
+        "lastModified": 1718370280,
+        "narHash": "sha256-m4/DSsx6yLi/96QbeLtQF+wgavVO9PGqTF2UpeJlwaM=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "4b08ae13db65671f72072885810250c103c3da2b",
+        "rev": "0a4964700a4f448f4c3074fd0560d9bf1b619be7",
         "type": "github"
       },
       "original": {

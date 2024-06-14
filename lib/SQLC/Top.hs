@@ -24,7 +24,12 @@ lower txt@(lengthOf folded .> flip replicate '=' → ln) query = do
   putStrLn $ indent "| |"
   putStrLn $ indent "\\ /"
   putStrLn $ indent " +"
-  print do IR.ir query
+  let ir = IR.ir query
+  print ir
+  putStrLn $ indent "|||"
+  putStrLn $ indent "\\ /"
+  putStrLn $ indent " +"
+  IR.exec do IR.asm ir
   putStrLn ""
 
 io ∷ IO ()
@@ -42,10 +47,10 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
           , (1, "Project", mkQ projectQuery 0)
           , (2, "Filter0", mkQ filterQuery0 1)
           , (3, "Filter1", mkQ filterQuery1 1)
-          , (4, "Filter2", mkQ filterQuery2 3)
-          , (5, "Join", mkQ joinQuery0 4)
-          , (6, "GroupBy", mkQ groupByQuery0 4)
-          , (7, "Expand", mkQ expandQuery0 6)
+          , (4, "Filter2", mkQ filterQuery2 1)
+          -- , (5, "Join", mkQ joinQuery0 1) -- FIXME: this is buggy!
+          -- , (6, "GroupBy", mkQ groupByQuery0 1) -- FIXME: this is buggy!
+          -- , (7, "Expand", mkQ expandQuery0 6)
           ]
         mkQ q i ln
           | i < ln = q (arr ! i ^. _2)
@@ -64,7 +69,7 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
       Query.Filter
         ( Query.Eq
             "ID"
-            (Query.Val "John")
+            (Query.Val "Kaze")
         )
     filterQuery1 =
       Query.Filter
@@ -77,7 +82,7 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
         ( Query.And
             ( Query.Ne
                 "ID"
-                (Query.Val "John")
+                (Query.Val "Kaze")
             )
             ( Query.Le
                 "Maturity"

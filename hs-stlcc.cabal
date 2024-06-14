@@ -13,8 +13,8 @@ library
       CPrim
       SQLC.Core
       SQLC.IR
+      SQLC.IR.Asm
       SQLC.IR.IR
-      SQLC.IR.Run
       SQLC.Query
       SQLC.Term
       SQLC.Top

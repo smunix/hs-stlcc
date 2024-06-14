@@ -4,17 +4,17 @@
 
 module SQLC.Term where
 
-import           SQLC.Core hiding (Record)
+import           SQLC.Core hiding (Record, Value)
 import qualified SQLC.Core as Core
 import           Util
 
 -- | Boolean propositions
 data Cond' r where
   And' ∷ r → r → Cond' r
-  Eq' ∷ Val → Val → Cond' r
-  Ne' ∷ Val → Val → Cond' r
-  Ge' ∷ Val → Val → Cond' r
-  Le' ∷ Val → Val → Cond' r
+  Eq' ∷ Value → Value → Cond' r
+  Ne' ∷ Value → Value → Cond' r
+  Ge' ∷ Value → Value → Cond' r
+  Le' ∷ Value → Value → Cond' r
   deriving (Foldable, Functor, Show)
 
 type Cond = Fix Cond'
@@ -44,17 +44,17 @@ pattern Le a b ← (project → Le' a b)
     Le a b = inject $ Le' a b
 
 -- | Values
-data Val where
-  Val ∷ Value → Val
-  VId ∷ Id Core.Val → Val
-  Select ∷ Name Col → Record → Val
+data Value where
+  Value ∷ Core.Value → Value
+  VId ∷ Id Core.Val → Value
+  Select ∷ Name Col → Record → Value
   deriving (Show)
 
 -- | Record terms
 data Record' r where
   RecordList' ∷ List r → Record' r
   RecordId' ∷ Id Core.Rec → Record' r
-  Record' ∷ Map (Name Col) Val → Record' r
+  Record' ∷ Map (Name Col) Value → Record' r
   deriving (Foldable, Functor, Show)
 
 type Record = Fix Record'

@@ -15,18 +15,19 @@ import           SQLC.Query    (Query (..))
 import qualified SQLC.Query    as Query
 import qualified SQLC.Term     as Term
 import           Util
+import Data.Map qualified as Map
 
 data IR' r where
   ScanFile' ∷ FilePath → Id Core.Rec → r → IR' r
   Emit' ∷ Schema → Term.Record → IR' r
   If' ∷ Term.Cond → r → IR' r
-  NewHashTable' ∷ Id Core.Hsh → r → r → IR' r
-  InsHashTable' ∷ Id Core.Hsh → Map (Name Col) Ty → Term.Record → IR' r
-  ScanHashTable'
-    ∷ Id Core.Hsh → Map (Name Col) Ty → Name Col → Id Core.Rec → r → IR' r
+  NewHTable' ∷ Id Core.Hash → r → r → IR' r
+  InsHTable' ∷ Id Core.Hash → Map (Name Col) Ty → Term.Record → IR' r
+  ScanHTable'
+    ∷ Id Core.Hash → Map (Name Col) Ty → Name Col → Id Core.Rec → r → IR' r
   Expand' ∷ Term.Record → Name Col → Id Core.Rec → r → IR' r
   Count' ∷ Term.Record → Name Col → Name Col → Id Core.Rec → r → IR' r
-  Let' ∷ Id Core.Val → Term.Val → r → IR' r
+  Let' ∷ Id Core.Val → Term.Value → r → IR' r
   deriving (Functor, Foldable, Show)
 
 type IR = Fix IR'
@@ -35,44 +36,50 @@ instance View IR' IR where
   project = unFix
   inject = Fix
 
-pattern ScanFile fp i r ← (project → ScanFile' fp i r)
+pattern ScanFile fp i query ← (project → ScanFile' fp i query)
   where
-    ScanFile fp i r = inject do ScanFile' fp i r
+    ScanFile fp i query = inject do ScanFile' fp i query
 
-pattern Emit s t ← (project → Emit' s t)
+pattern Emit sch record ← (project → Emit' sch record)
   where
-    Emit s t = inject do Emit' s t
+    Emit sch record = inject do Emit' sch record
 
-pattern If c q ← (project → If' c q)
+pattern If cond query ← (project → If' cond query)
   where
-    If c q = inject do If' c q
+    If cond query = inject do If' cond query
 
-pattern NewHashTable i cols r ← (project → NewHashTable' i cols r)
+pattern NewHTable i build scan ← (project → NewHTable' i build scan)
   where
-    NewHashTable i cols r = inject do NewHashTable' i cols r
+    NewHTable i build scan = inject do NewHTable' i build scan
 
-pattern InsHashTable i cols r ← (project → InsHashTable' i cols r)
+pattern InsHTable i cols record ← (project → InsHTable' i cols record)
   where
-    InsHashTable i cols r = inject do InsHashTable' i cols r
+    InsHTable i cols record = inject do InsHTable' i cols record
 
-pattern ScanHashTable i cols col rid r ← (project → ScanHashTable' i cols col rid r)
+pattern ScanHTable i cols tag rid query ←
+  (project → ScanHTable' i cols tag rid query)
   where
-    ScanHashTable i cols col rid r = inject do ScanHashTable' i cols col rid r
+    ScanHTable i cols tag rid query = inject do ScanHTable' i cols tag rid query
 
-pattern Expand r col rid k ← (project → Expand' r col rid k)
+pattern Expand r tag rid query ← (project → Expand' r tag rid query)
   where
-    Expand r col rid k = inject do Expand' r col rid k
+    Expand r tag rid query = inject do Expand' r tag rid query
 
-pattern Count r col gol rid k ← (project → Count' r col gol rid k)
+pattern Count record tag countCol rid query ←
+  (project → Count' record tag countCol rid query)
   where
-    Count r col gol rid k = inject do Count' r col gol rid k
+    Count record tag countCol rid query = inject do Count' record tag countCol rid query
 
-pattern Let rid v a ← (project → Let' rid v a)
+pattern Let i val query ← (project → Let' i val query)
   where
-    Let rid v a = inject do Let' rid v a
+    Let i val query = inject do Let' i val query
 
 data Store where
   Store ∷ {_u ∷ Int} → Store
+  deriving (Eq, Show)
+
+instance AsEmpty Store where
+  _Empty = nearly (Store 0) (== Store 0)
 
 makeLenses ''Store
 
@@ -80,7 +87,7 @@ ir ∷ Query → IR
 ir
   q0@( schemaOf →
         sch0@(view schema → cols)
-      ) = runPureEff do evalState (Store 0) \store → lower store cols (return <. Emit sch0) q0
+      ) = runPureEff do evalState Empty \store → lower store cols (return <. Emit sch0) q0
     where
       newId
         ∷ ∀ i st m es r
@@ -127,13 +134,13 @@ ir
         Query.Join l r → flip (lower store neededCols) l \l →
           flip (lower store neededCols) r \r → kont do
             case (l, r) of
-              (Term.Record l, Term.Record r) → Term.Record (l <> r)
+              (Term.Record l, Term.Record r) → Term.Record (Map.intersection l r) -- FIXME: this is buggy
               (l, r)                         → Term.RecordList [l, r]
         Query.GroupBy cols@((neededCols <>) → cols') tag query →
           newId store \hid → do
-            insert ← lower store cols' (pure <. InsHashTable hid cols) query
-            scan ← newId store \rid → ScanHashTable hid cols tag rid <$> kont (Term.RecordId rid)
-            return do NewHashTable hid insert scan
+            build ← lower store cols' (pure <. InsHTable hid cols) query
+            scan ← newId store \rid → ScanHTable hid cols tag rid <$> kont (Term.RecordId rid)
+            return do NewHTable hid build scan
         Query.Expand col query → flip (lower store neededCols) query \r →
           newId store \i →
             Expand r col i <$> kont (Term.RecordId i)
@@ -176,9 +183,9 @@ ir
                 )
                 <$> k r
 
-          select ∷ Term.Record → Query.Ref → Maybe Term.Val
+          select ∷ Term.Record → Query.Ref → Maybe Term.Value
           select record = \case
-            Query.Val v → return $ Term.Val v
+            Query.Val v → return $ Term.Value v
             Query.Fld (c, _) → case record of
               Term.Record row → row ^? ix c
               other           → Just do Term.Select c other
