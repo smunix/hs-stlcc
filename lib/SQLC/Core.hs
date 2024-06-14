@@ -1,0 +1,137 @@
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE RoleAnnotations    #-}
+{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE ViewPatterns       #-}
+
+module SQLC.Core where
+
+import           Data.String
+import           Util        hiding (Index)
+
+type List a = [a]
+
+data Dom where
+  Col ∷ Dom
+
+data DomId where
+  Rec ∷ DomId
+  Val ∷ DomId
+  Hsh ∷ DomId
+
+newtype Name (n ∷ Dom) where
+  Name ∷ String → Name n
+  deriving newtype (Show, Eq, Ord, IsString, Semigroup, Monoid)
+
+type role Name phantom
+
+newtype Index (i ∷ Dom) where
+  Index ∷ Int → Index i
+  deriving newtype (Show, Eq, Ord)
+
+type role Index phantom
+
+newtype Id (i ∷ DomId) where
+  Id ∷ Int → Id i
+  deriving newtype (Show, Eq, Ord)
+
+type role Id phantom
+
+data Ty where
+  Hole ∷ Ty
+  I32 ∷ Ty
+  String ∷ Ty
+  Schema ∷ Schema → Ty
+  deriving (Show, Eq, Ord)
+
+instance IsString (Name Col, Ty) where
+  fromString = fromString .> (,Hole)
+
+newtype Schema where
+  MkSchema ∷ {_schema ∷ Map (Name Col) Ty} → Schema
+  deriving newtype (Show, Eq, Ord, Monoid, Semigroup)
+
+instance MapOf_ (Map (Name Col)) (Name Col) a
+
+class SchemaOf a where
+  schemaOf ∷ a → Schema
+
+data Value where
+  Int ∷ Int → Value
+  Str ∷ String → Value
+  Tbl ∷ Table → Value
+  deriving (Show)
+
+instance IsString Value where
+  fromString = Str
+
+instance Num Value where
+  fromInteger = fromInteger .> Int
+
+newtype Record where
+  Record ∷ Map (Name Col) Value → Record
+  deriving newtype (Show)
+
+data Table where
+  Table
+    ∷ { _description ∷ Schema
+      , _entries ∷ List Record
+      }
+    → Table
+  deriving (Show)
+
+data Combine a b where
+  Combine ∷ a → b → Combine a b
+  deriving (Eq, Show)
+
+data Sub b where
+  Sub ∷ Name Col → b → Sub b
+  deriving (Eq, Show)
+
+data Unfold b where
+  Unfold ∷ Name Col → b → Unfold b
+  deriving (Eq, Show)
+
+makeLenses ''Schema
+makePrisms ''Value
+makePrisms ''Ty
+makeLenses ''Table
+
+instance AsEmpty Schema where
+  _Empty = nearly (MkSchema Empty) (view schema .> is _Empty)
+
+instance SchemaOf Schema where
+  schemaOf = id
+
+instance SchemaOf (List (Name Col, Ty)) where
+  schemaOf = MkSchema <. toMapOf (folded % ifolded)
+
+instance (SchemaOf a, SchemaOf b) ⇒ SchemaOf (Combine a b) where
+  schemaOf (Combine (schemaOf → a) (schemaOf → b)) = a <> b
+
+instance () ⇒ SchemaOf (Sub Schema) where
+  schemaOf (Sub c sch) = MkSchema $ toMapOf (folded % ifolded) [(c, Schema sch)]
+
+instance () ⇒ SchemaOf (Unfold Schema) where
+  schemaOf
+    ( Unfold
+        c0
+        (MkSchema (preview (ix c0) .> fmap (c0,) → def))
+      )
+      | Just
+          ( _
+            , Schema
+                ( MkSchema
+                    ( itoListOf ifolded
+                        .> fmap (first \c → c0 <> Name "." <> c)
+                        .> mapOf (folded % ifolded)
+                        .> MkSchema →
+                        sch'
+                      )
+                  )
+            ) ←
+          def =
+          sch'
+      | Just r ← def =
+          error $ "unfold schema expected a schema, but found: " <> show r
+      | Nothing ← def = error $ "unfold schema failed to find: " <> show c0

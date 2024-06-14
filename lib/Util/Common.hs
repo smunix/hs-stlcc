@@ -58,11 +58,11 @@ instance MapOf_ IntMap Int a where
 
 mapOf
   ∷ ∀ k is i s a
-   . (Is k A_Fold, is `HasSingleIndex` i, Ord i, MapOf_ (MapOfT i) i a)
+   . (k `Is` A_Fold, is `HasSingleIndex` i, Ord i, MapOf_ (MapOfT i) i a)
   ⇒ Optic' k is s a
   → s
   → MapOfT i a
-mapOf o s = mapOf_ @(MapOfT i) o s
+mapOf = mapOf_ @(MapOfT i)
 
 class NameOf a where
   nameOf ∷ a → String

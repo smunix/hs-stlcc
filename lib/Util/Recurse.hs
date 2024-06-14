@@ -1,5 +1,6 @@
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ViewPatterns         #-}
+{-# LANGUAGE DerivingStrategies     #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE UndecidableInstances   #-}
 
 module Util.Recurse (module Util.Recurse, (&&&)) where
 
@@ -7,18 +8,18 @@ import           Control.Arrow
 import           Data.Function
 import           Util.Common
 
-class View f a where
+class View f a | f → a where
   project ∷ a → f a
   inject ∷ f a → a
 
 newtype Fix f where
   Fix ∷ {unFix ∷ f (Fix f)} → Fix f
 
-instance (Eq (f (Fix f))) ⇒ Eq (Fix f) where
-  (unFix → fa) == (unFix → fb) = fa == fb
+deriving newtype instance (Eq (f (Fix f))) ⇒ Eq (Fix f)
 
-instance (Ord (f (Fix f))) ⇒ Ord (Fix f) where
-  (unFix → fa) `compare` (unFix → fb) = fa `compare` fb
+deriving newtype instance (Ord (f (Fix f))) ⇒ Ord (Fix f)
+
+deriving newtype instance (Show (f (Fix f))) ⇒ Show (Fix f)
 
 cata ∷ (Functor f) ⇒ (f a → a) → Fix f → a
 cata alg = fix \rec → unFix .> fmap rec .> alg

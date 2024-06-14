@@ -11,6 +11,13 @@ build-type:     Simple
 library
   exposed-modules:
       CPrim
+      SQLC.Core
+      SQLC.IR
+      SQLC.IR.IR
+      SQLC.IR.Run
+      SQLC.Query
+      SQLC.Term
+      SQLC.Top
       STLC.Def
       STLC.Load
       STLC.Term
@@ -41,9 +48,7 @@ library
       GADTs
       GHC2021
       UnicodeSyntax
-  build-tools:
-      alex
-    , happy
+  build-tool-depends:
   build-depends:
       HMap
     , array

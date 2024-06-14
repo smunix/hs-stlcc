@@ -1,13 +1,7 @@
-{-# LANGUAGE MultiWayIf      #-}
-{-# LANGUAGE TemplateHaskell #-}
-
--- | Type for "processes", having multiple producers and consumers.
---
--- Each element (of type 'a') written to the process is "presented" to each consumer (continuation) (of type @a -> r@).
---
--- Elements and consumers can be added in any order. When a new element is added, it is presented to the existing consumers. When a new consumer is added, it is presented with the existing elements.
---
--- This type is used internally in the implementation of 'EarleyM', but it may be more widely useful.
+-- | This Haskell module defines a framework for working with context-sensitive
+--   grammars using Earley parsing. The key components of this module include data
+--   types and functions that enable the construction, manipulation, and parsing of
+--   grammars in a monadic context
 module Util.Earley.Language where
 
 import           Data.HMap           (HKey, HMap)
@@ -39,10 +33,14 @@ data NonTerminal a where
   NonTerminal ∷ ∀ x a. String → (HKey x (Value a)) → NonTerminal a
 
 -- | Data type representing a grammar rule.
-data Rule = ∀ a. Rule (NonTerminal a) (Grammar a)
+data Rule where
+  Rule ∷ (NonTerminal a) → (Grammar a) → Rule
 
 -- | Type for language definition over terminals (tokens) of type 't'. A collection of production rules together with an entry point. Constructed monadically.
-data Language t a = Language {runLanguage ∷ NonTerminal t → (a, [Rule])}
+data Language t a where
+  Language
+    ∷ {runLanguage ∷ NonTerminal t → (a, [Rule])}
+    → Language t a
 
 -- | Type to represent the effort taken during parsing. Used by some unit-tests.
 newtype Effort = Effort Int deriving (Show)
@@ -51,25 +49,26 @@ newtype Effort = Effort Int deriving (Show)
 type Cursor = Int
 
 -- | From type representing the start of a grammar.
-type From a = (NonTerminal a, Cursor)
+type From a = (a, Cursor)
 
--- | Upto type representing the end of a grammar.
-type Upto a = (a, Cursor)
+-- | To type representing the end of a grammar.
+type To a = (a, Cursor)
 
 -- | An Earley item: A located/dotted Rule. i.e. Rule + 2 positions.
 data Item where
   Item ∷ ∀ a. Cursor → (NonTerminal a) → Cursor → (Grammar a) → Item
 
 -- | State for Earley parsing.
-data State = State {processes ∷ HMap, effort ∷ Effort}
+data State where
+  State ∷ {processes ∷ HMap, effort ∷ Effort} → State
 
 -- | Type for state values.
-type Value a = Map Cursor (Process (Upto a) Item)
+type Value a = Map Cursor (Process (To a) Item)
 
 instance Functor (Language t) where fmap = liftM
 
 instance Applicative (Language t) where
-  pure a = Language $ \_ → (a, [])
+  pure a = Language $ const (a, [])
   (<*>) = ap
 
 instance Monad (Language t) where
@@ -78,7 +77,7 @@ instance Monad (Language t) where
       (a, rules1) = runLanguage m tok
       (b, rules2) = runLanguage (f a) tok
      in
-      (b, rules1 ++ rules2)
+      (b, rules1 <> rules2)
 
 instance Functor Grammar where fmap = liftM
 
@@ -142,7 +141,7 @@ getToken = Language $ \tok → (referenceNonTerminal tok, [])
 
 -- | Create a fresh non-terminal within a language definition. The name is only used for debugging and reporting ambiguity. This is a low level primitive. Simpler to use 'declare'.
 createNamedNonTerminal ∷ (Show a) ⇒ String → Language t (NonTerminal a)
-createNamedNonTerminal name = withNonTerminal name $ \nt → Language $ \_ → (nt, [])
+createNamedNonTerminal name = withNonTerminal name $ \nt → Language $ const (nt, [])
 
 -- | Reference a non-terminal on the RHS of a production. This is a low level primitive. Simpler to use 'declare'.
 referenceNonTerminal ∷ NonTerminal a → Grammar a
@@ -156,7 +155,7 @@ declare name = do
 
 -- | Define a language production, linking the LHS and RHS of the rule.
 produce ∷ NonTerminal a → Grammar a → Language t ()
-produce nt grammar = Language $ \_ → ((), [Rule nt grammar])
+produce nt grammar = Language $ const ((), [Rule nt grammar])
 
 -- | Combination of declare/produce to allow reference to a grammar within its own definition. Use this for languages with left-recursion.
 fix
@@ -179,16 +178,16 @@ incEffortState ∷ State → State
 incEffortState s = s {effort = incEffort (effort s)}
 
 -- | Check if a process exists for a given non-terminal and position in the state.
-existsProcess ∷ State → From a → Bool
+existsProcess ∷ State → From (NonTerminal a) → Bool
 existsProcess s from = isJust $ lookProcess s from
 
 -- | Look up a process for a given non-terminal and position in the state.
-lookProcess ∷ State → From a → Maybe ((Process (Upto a) Item))
+lookProcess ∷ State → From (NonTerminal a) → Maybe (Process (To a) Item)
 lookProcess s (nt, cursor) = withKeyOfNonTerminal nt $ \key →
   HMap.lookup key (processes s) >>= (^. at cursor)
 
 -- | Insert a process for a given non-terminal and position in the state.
-insertProcess ∷ State → From a → (Process (Upto a) Item) → State
+insertProcess ∷ State → From (NonTerminal a) → Process (To a) Item → State
 insertProcess s (nt, cursor) process = withKeyOfNonTerminal nt $ \key →
   let
     m = HMap.findWithDefault mempty key (processes s)
@@ -206,22 +205,26 @@ fullParseAt start cursor s = not . null $ do
     _elems = maybe [] (^. Process.elems) (lookProcess s (start, 0))
 
 -- | Result of running a parsing function: 'parse' or 'parseAmb'. Combines the outcome with the effort taken.
-data Parsing a = Parsing {effortP ∷ Effort, outcomeP ∷ a} deriving (Functor)
+data Parsing a where
+  Parsing ∷ {effortP ∷ Effort, outcomeP ∷ a} → Parsing a
+  deriving (Functor)
 
 -- | Type describing a syntax-error encountered during parsing. In all cases the final position reached before the error is reported. This position is automatically determined by the Earley parsing algorithm.
-data SyntaxError
-  = UnexpectedTokenAt Cursor
-  | UnexpectedEOF Cursor
-  | ExpectedEOF Cursor
+data SyntaxError where
+  UnexpectedTokenAt ∷ Cursor → SyntaxError
+  UnexpectedEOF ∷ Cursor → SyntaxError
+  ExpectedEOF ∷ Cursor → SyntaxError
   deriving (Show, Eq)
 
 -- | Type describing a parse ambiguity for a specific non-terminal (name), across a position range. This may be reported as an error by the 'parse' entry point.
-data Ambiguity = Ambiguity String Cursor Cursor deriving (Show, Eq)
+data Ambiguity where
+  Ambiguity ∷ String → Cursor → Cursor → Ambiguity
+  deriving (Show, Eq)
 
 -- | Union of 'SyntaxError' and 'Ambiguity', for reporting errors from 'parse'.
-data ParseError
-  = SyntaxError SyntaxError
-  | AmbiguityError Ambiguity
+data ParseError where
+  SyntaxError ∷ SyntaxError → ParseError
+  AmbiguityError ∷ Ambiguity → ParseError
   deriving (Show, Eq)
 
 -- | Entry-point to run a parse. Rejects ambiguity. Parse a list of tokens using a Language/Grammar definition. Returns the single parse or a parse-error.
@@ -232,10 +235,10 @@ parse
   → Parsing (Either ParseError a)
 parse language input = ggparse rejectAmb language input <&> handleResult
   where
-    handleResult (Left e) = (Left e)
+    handleResult (Left e) = Left e
     handleResult (Right []) = error "ggparse, [] results not possible"
-    handleResult (Right [x]) = (Right x)
-    handleResult (Right (_ : _)) = (Left (AmbiguityError (Ambiguity "start" 0 (length input))))
+    handleResult (Right [x]) = Right x
+    handleResult (Right (_ : _)) = Left (AmbiguityError (Ambiguity "start" 0 (length input)))
 
 -- | Entry-point to run a parse. Allows ambiguity. Parses a list of tokens using a Language/Grammar definition. Returns all parses or a syntax-error.
 parseAmb
@@ -245,12 +248,12 @@ parseAmb
   → Parsing (Either SyntaxError [a])
 parseAmb language input = ggparse allowAmb language input <&> handleResult
   where
-    handleResult (Left (SyntaxError e)) = (Left e)
+    handleResult (Left (SyntaxError e)) = Left e
     handleResult (Left (AmbiguityError _)) = error "ggparseAmb, AmbiguityError not possible"
-    handleResult (Right xs) = (Right xs)
+    handleResult (Right xs) = Right xs
 
 -- | Configuration for parsing, determining whether ambiguity is allowed.
-data Config = Config {allowAmbiguity ∷ Bool}
+newtype Config = Config {allowAmbiguity ∷ Bool}
 
 -- | Configuration that allows ambiguity.
 allowAmb ∷ Config
@@ -356,7 +359,8 @@ walk tokenNonTerminal config grammar rules input = withNonTerminal "<start>" $ \
               (s1, items1) = awaitState s (ntB, p2) (\(b, p3) → Item p1 nt p3 (kB b))
 
         -- \| Produce state and update the process.
-        produceState ∷ State → From a → Upto a → Either Ambiguity (State, [Item])
+        produceState
+          ∷ State → From (NonTerminal a) → To a → Either Ambiguity (State, [Item])
         produceState s from upto = case lookProcess s from of
           Empty → error ("produceState, missing process for: " ++ show from)
           Just process
@@ -371,14 +375,14 @@ walk tokenNonTerminal config grammar rules input = withNonTerminal "<start>" $ \
 
         -- \| Write to the process without ambiguity.
         writeProcessNoAmb
-          ∷ Upto a → (Process (Upto a) Item) → Maybe ((Process (Upto a) Item), [Item])
+          ∷ To a → Process (To a) Item → Maybe (Process (To a) Item, [Item])
         writeProcessNoAmb upto process =
           if any ((== snd upto) . snd) (process ^. Process.elems)
             then Empty
             else Just (Process.produce upto process)
 
         -- \| Await state and update the process with a consumer.
-        awaitState ∷ State → From a → (Upto a → Item) → (State, [Item])
+        awaitState ∷ State → From (NonTerminal a) → (To a → Item) → (State, [Item])
         awaitState s from consumer = case lookProcess s from of
           Empty → (insertProcess s from (Process.consume0 consumer), predict from)
           Just process →
@@ -388,7 +392,7 @@ walk tokenNonTerminal config grammar rules input = withNonTerminal "<start>" $ \
               (insertProcess s from process', items)
 
         -- \| Predict items for a given non-terminal and position.
-        predict ∷ From a → [Item]
+        predict ∷ From (NonTerminal a) → [Item]
         predict (nt, cursor) = map (itemOfRule cursor) (findRules nt)
 
         -- \| Create an item from a rule.

@@ -1,6 +1,5 @@
 {
   inputs = {
-    # nixpkgs.url = "github:cachix/devenv-nixpkgs/rolling";
     nixpkgs.url = "github:nixos/nixpkgs?ref=master";
     systems.url = "github:nix-systems/default";
     devenv.url = "github:cachix/devenv";
@@ -9,11 +8,6 @@
     nix-utils.inputs.nix-filter.follows = "nix-filter";
     nix-utils.inputs.nixpkgs.follows = "nixpkgs";
     nix-filter.url = "github:numtide/nix-filter";
-    # bluefin.url = "github:smunix/bluefin?ref=01-compile-nix";
-    bluefin.url = "github:tomjaguarpaw/bluefin?ref=master";
-    bluefin.flake = false;
-    ghcitui.url = "https://github.com/CrystalSplitter/ghcitui";
-    ghcitui.flake = false;
     all-cabal-hashes.url =
       "github:commercialhaskell/all-cabal-hashes?ref=hackage";
     all-cabal-hashes.flake = false;
@@ -44,27 +38,12 @@
             extension = with pkgs.haskell.lib;
               hf: hp:
               with hf; {
-                bluefin-internal = overrideCabal
-                  (callCabal2nix "bluefin-internal" (filter {
-                    root = "${inputs.bluefin}/bluefin-internal";
-                    exclude = [ ];
-                  }) { }) {
-                    postPatch = with pkgs; ''
-                      ${rsync}/bin/rsync -avz ${inputs.bluefin}/LICENSE .
-                    '';
-                  };
-                bluefin = overrideCabal (callCabal2nix "bluefin" (filter {
-                  root = "${inputs.bluefin}/bluefin";
-                  exclude = [ ];
-                }) { }) {
-                  postPatch = with pkgs; ''
-                    ${rsync}/bin/rsync -avz ${inputs.bluefin}/LICENSE .
-                  '';
-                };
-                gtui = callCabal2nix "gtui" (filter {
-                  root = inputs.ghcitui;
-                  exclude = [ ];
-                }) { };
+                bluefin-internal = callHackage "bluefin-internal" "0.0.6.0" { };
+                bluefin = callHackage "bluefin" "0.0.6.0" { };
+
+                gtui = callHackage "ghcitui" "0.3.0.0" { };
+                # ghclive = callHackage "ghclive" "0.1.0.2" {};
+
                 hs-stlcc = callCabal2nix "hs-stlcc" (filter {
                   root = inputs.self;
                   exclude = [ (matchExt "cabal") ];
@@ -114,7 +93,7 @@
 
               scripts = {
                 loop.exec =
-                  "${pkgs.ghcid}/bin/ghcid -W -a -c cabal repl lib:hs-stlcc";
+                  "${pkgs.ghcid}/bin/ghcid -T SQLC.Top.io -W -a -c cabal repl lib:hs-stlcc";
               };
 
               pre-commit.hooks = {

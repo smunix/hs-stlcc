@@ -1,25 +1,21 @@
 {-# LANGUAGE MultiWayIf      #-}
 {-# LANGUAGE TemplateHaskell #-}
 
--- | Module for handling processes with multiple producers and consumers.
---
--- Each element of type 'a' written to the process is presented to each consumer (continuation) of type @a -> r@.
--- Elements and consumers can be added in any order. When a new element is added, it is presented to the existing consumers.
--- When a new consumer is added, it is presented with the existing elements.
---
--- This type is used internally in the implementation of 'EarleyM', but it may be more widely useful.
+-- |
+-- This Haskell module provides functionality for managing and manipulating
+-- processes that contain elements and consumers. A process in this context is a
+-- construct that holds a list of elements and a list of consumers, where
+-- consumers are functions that take an element and produce a result. The module
+-- offers operations to create, modify, and interact with these processes,
+-- ensuring that elements can be produced and consumed efficiently.
 module Util.Earley.Process where
 
 import           Prelude hiding (consume, elem)
 import           Util
 
 -- | Data type representing a process containing elements of type 'a' and consumers of type @a -> r@.
-data Process a r = Process
-  { _elems     ∷ [a]
-  -- ^ List of elements in the process.
-  , _consumers ∷ [a → r]
-  -- ^ List of consumers in the process.
-  }
+data Process a r where
+  Process ∷ {_elems ∷ [a], _consumers ∷ [a → r]} → Process a r
 
 -- | Generate lenses for 'Process' data type.
 makeLenses ''Process

@@ -3,34 +3,17 @@
     "all-cabal-hashes": {
       "flake": false,
       "locked": {
-        "lastModified": 1717132501,
-        "narHash": "sha256-FEvJPLr91/yFIAl4zPrse8SjbAkHK1bM/lHYCv7bgv8=",
+        "lastModified": 1717970993,
+        "narHash": "sha256-peY9kzDTQNnPASopkUtH3DbCdMVEJN3AGB3rxtxKDIE=",
         "owner": "commercialhaskell",
         "repo": "all-cabal-hashes",
-        "rev": "3b2c4eb2ccd3b5cf68f50f97ac313d17c4ce2ae6",
+        "rev": "87bd8ee9a735c06403d3ea4b8149ba6053ad4fa4",
         "type": "github"
       },
       "original": {
         "owner": "commercialhaskell",
         "ref": "hackage",
         "repo": "all-cabal-hashes",
-        "type": "github"
-      }
-    },
-    "bluefin": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1714812928,
-        "narHash": "sha256-EHZoqvAVe70eJKD4XwX1BoqQ4oGvEmLcxnArq4/Glwo=",
-        "owner": "tomjaguarpaw",
-        "repo": "bluefin",
-        "rev": "cc80fc70c9ed78a90439c97d16778c73805d1b2e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "tomjaguarpaw",
-        "ref": "master",
-        "repo": "bluefin",
         "type": "github"
       }
     },
@@ -75,11 +58,11 @@
         "pre-commit-hooks": "pre-commit-hooks"
       },
       "locked": {
-        "lastModified": 1715346321,
-        "narHash": "sha256-l65J9y7hH9jASeYG8k7NCLKnwbKcPrUgcO6ZRmG8TQU=",
+        "lastModified": 1717917954,
+        "narHash": "sha256-2p4dWAywA85r/4zDBQt8dLUErIVSitdDMEow5xxpU0g=",
         "owner": "cachix",
         "repo": "devenv",
-        "rev": "61033d861900f36bfa6afcd5b8580f098d65e137",
+        "rev": "8dab95bb60b6ece337450d80cc67515429652876",
         "type": "github"
       },
       "original": {
@@ -185,18 +168,6 @@
         "owner": "numtide",
         "repo": "flake-utils",
         "type": "github"
-      }
-    },
-    "ghcitui": {
-      "flake": false,
-      "locked": {
-        "narHash": "sha256-KttE1BhyekRijN3ccVn0SRxrtWHpGge9LD9/71BSDdE=",
-        "type": "file",
-        "url": "https://github.com/CrystalSplitter/ghcitui"
-      },
-      "original": {
-        "type": "file",
-        "url": "https://github.com/CrystalSplitter/ghcitui"
       }
     },
     "gitignore": {
@@ -402,11 +373,11 @@
     },
     "nixpkgs_2": {
       "locked": {
-        "lastModified": 1717258601,
-        "narHash": "sha256-gMvWwxNTVDcYWEpdW1YXiA3oKaMU4dFkUmUAEo3RNNU=",
+        "lastModified": 1717971428,
+        "narHash": "sha256-2GLnR7wavFoBcfUhChGO1nd+x3OEsu8W4G0oeJ6msk4=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "a66aecff8795337adf83e16be9dd070fab95c341",
+        "rev": "4b08ae13db65671f72072885810250c103c3da2b",
         "type": "github"
       },
       "original": {
@@ -472,9 +443,7 @@
     "root": {
       "inputs": {
         "all-cabal-hashes": "all-cabal-hashes",
-        "bluefin": "bluefin",
         "devenv": "devenv",
-        "ghcitui": "ghcitui",
         "nix-filter": "nix-filter",
         "nix-utils": "nix-utils",
         "nixpkgs": "nixpkgs_2",
