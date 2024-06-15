@@ -9,13 +9,13 @@ module SQLC.IR.IR where
 import           Bluefin
 import           Bluefin.Eff
 import           Bluefin.State
+import qualified Data.Map      as Map
 import           SQLC.Core
 import qualified SQLC.Core     as Core
 import           SQLC.Query    (Query (..))
 import qualified SQLC.Query    as Query
 import qualified SQLC.Term     as Term
 import           Util
-import Data.Map qualified as Map
 
 data IR' r where
   ScanFile' ∷ FilePath → Id Core.Rec → r → IR' r
@@ -134,11 +134,11 @@ ir
         Query.Join l r → flip (lower store neededCols) l \l →
           flip (lower store neededCols) r \r → kont do
             case (l, r) of
-              (Term.Record l, Term.Record r) → Term.Record (Map.intersection l r) -- FIXME: this is buggy
-              (l, r)                         → Term.RecordList [l, r]
+              (Term.Record l, Term.Record r) → Term.Record (foldOf folded [l, r])
+              (l, r) → Term.RecordList [l, r]
         Query.GroupBy cols@((neededCols <>) → cols') tag query →
           newId store \hid → do
-            build ← lower store cols' (pure <. InsHTable hid cols) query
+            build ← lower store cols' (InsHTable hid cols .> pure) query
             scan ← newId store \rid → ScanHTable hid cols tag rid <$> kont (Term.RecordId rid)
             return do NewHTable hid build scan
         Query.Expand col query → flip (lower store neededCols) query \r →
@@ -157,29 +157,53 @@ ir
             Query.Eq' a b → \r →
               If
                 ( Term.Eq
-                    (unJust "failed lowerPred Eq'" (select r a))
-                    (unJust "failed lowerPred Eq'" (select r b))
+                    ( unJust
+                        ("select '" <> show r <> " " <> show a <> "' failed to lowerPred Eq'")
+                        (select r a)
+                    )
+                    ( unJust
+                        ("select '" <> show r <> " " <> show b <> "' failed to lowerPred Eq'")
+                        (select r b)
+                    )
                 )
                 <$> k r
             Query.Ne' a b → \r →
               If
                 ( Term.Ne
-                    (unJust "failed lowerPred Ne'" (select r a))
-                    (unJust "failed lowerPred Ne'" (select r b))
+                    ( unJust
+                        ("select '" <> show r <> " " <> show a <> "' failed to lowerPred Ne'")
+                        (select r a)
+                    )
+                    ( unJust
+                        ("select '" <> show r <> " " <> show b <> "' failed to lowerPred Ne'")
+                        (select r b)
+                    )
                 )
                 <$> k r
             Query.Ge' a b → \r →
               If
                 ( Term.Ge
-                    (unJust "failed lowerPred Ge'" (select r a))
-                    (unJust "failed lowerPred Ge'" (select r b))
+                    ( unJust
+                        ("select '" <> show r <> " " <> show a <> "' failed to lowerPred Ge'")
+                        (select r a)
+                    )
+                    ( unJust
+                        ("select '" <> show r <> " " <> show b <> "' failed to lowerPred Ge'")
+                        (select r b)
+                    )
                 )
                 <$> k r
             Query.Le' a b → \r →
               If
                 ( Term.Le
-                    (unJust "failed lowerPred Le'" (select r a))
-                    (unJust "failed lowerPred Le'" (select r b))
+                    ( unJust
+                        ("select '" <> show r <> " " <> show a <> "' failed to lowerPred Le'")
+                        (select r a)
+                    )
+                    ( unJust
+                        ("select '" <> show r <> " " <> show b <> "' failed to lowerPred Le'")
+                        (select r b)
+                    )
                 )
                 <$> k r
 

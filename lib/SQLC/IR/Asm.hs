@@ -123,9 +123,9 @@ instance Insert Hash (Map (Name Col) Ty, Term.Record) where
     modify
       hid
       ( at hkey
-          %~ maybe
-            (fail do "failed to find HTable with hid '" <> show hid <> "'")
-            ((record :<) .> Just)
+          %~ \case
+            Just records → Just (record :< records)
+            Empty → Just [record]
       )
 
 asm ∷ IR → Asm ()
@@ -143,8 +143,8 @@ asm = cata \case
   IR.InsHTable' hid cols record → insert hid (cols, record)
   IR.ScanHTable' hid cols tag rid query →
     get hid >>= itraverseOf_ itraversed \vals records → do
-      insert rid $
-        Record $
+      insert rid do
+        Record do
           mapOf
             (folded % ifolded)
             ( zipWith
@@ -257,16 +257,20 @@ exec pgm = runEff \io → evalState (Empty @Machine) \st → walk io st pgm
       Fail str → effIO io do fail str
       Load fp → return $ Table sch _recs
         where
-          sch = MkSchema $ toMapOf (folded % ifolded) [("Name", String), ("Age", I32)]
+          sch =
+            MkSchema $
+              toMapOf (folded % ifolded) [("Name", String), ("Age", I32), ("City", String)]
           _recs =
             (toMapOf (folded % ifolded) .> Record)
-              <$> [ [("Name", "Kinja"), ("Age", 6)]
-                  , [("Name", "Paluku"), ("Age", 29)]
-                  , [("Name", "Kaze"), ("Age", 11)]
-                  , [("Name", "Koze"), ("Age", 3)]
+              <$> [ [("Name", "Kinja"), ("Age", 6), ("City", "Montreal")]
+                  , [("Name", "Paluku"), ("Age", 29), ("City", "Toronto")]
+                  , [("Name", "Kaze"), ("Age", 11), ("City", "Vancouver")]
+                  , [("Name", "Ahmed"), ("Age", 29), ("City", "Moncton")]
+                  , [("Name", "Koze"), ("Age", 3), ("City", "Montreal")]
+                  , [("Name", "Megan"), ("Age", 11), ("City", "Vancouver")]
                   ]
       Trace msg m → do
-        effIO io do print msg
+        effIO io do print' msg
         walk io st m
       Sandbox m → do
         mach0 ← State.get st

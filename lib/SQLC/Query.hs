@@ -1,7 +1,8 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns    #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms   #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module SQLC.Query where
 
@@ -115,12 +116,12 @@ instance SchemaOf Query where
         tys =
           query ^. schema
     Expand' col sch → schemaOf $ Combine sch (Unfold col sch)
-    Count' _agg col0 query → schemaOf $ Combine query col
+    Count' tag countCol query → schemaOf $ Combine query col
       where
         col = schemaOf do
-          c ← [col0]
+          c ← [countCol]
           let
-            Just ty = tys ^? ix c
+            Just ty = tys ^? ix tag
           return (c, ty)
 
         tys ∷ Map (Name Col) Ty
@@ -131,30 +132,60 @@ pattern ScanFile cols fp ← (project → ScanFile' cols fp)
   where
     ScanFile cols fp = inject do ScanFile' cols fp
 
-pattern ProjectAs sources aliases query ← (project → ProjectAs' sources aliases query)
+pattern ProjectAs sources targets query ← (project → ProjectAs' sources targets query)
   where
-    ProjectAs sources aliases query = inject do ProjectAs' sources aliases query
+    ProjectAs sources targets query = inject do ProjectAs' sources targets query
 
-pattern Filter pred q ← (project → Filter' pred q)
+pattern Filter pred query ← (project → Filter' pred query)
   where
-    Filter pred q = inject do Filter' pred q
+    Filter pred query = inject do Filter' pred query
 
 pattern Join l r ← (project → Join' l r)
   where
     Join l r = inject do Join' l r
 
-pattern HashJoin as bs q ← (project → HashJoin' as bs q)
+pattern HashJoin as bs query ← (project → HashJoin' as bs query)
   where
-    HashJoin as bs q = inject do HashJoin' as bs q
+    HashJoin as bs query = inject do HashJoin' as bs query
 
-pattern GroupBy cols col q ← (project → GroupBy' cols col q)
+pattern GroupBy cols col query ← (project → GroupBy' cols col query)
   where
-    GroupBy cols col q = inject do GroupBy' cols col q
+    GroupBy cols col query = inject do GroupBy' cols col query
 
-pattern Expand col q ← (project → Expand' col q)
+pattern Expand col query ← (project → Expand' col query)
   where
-    Expand col q = inject do Expand' col q
+    Expand col query = inject do Expand' col query
 
-pattern Count a b q ← (project → Count' a b q)
+pattern Count tag countCol query ← (project → Count' tag countCol query)
   where
-    Count a b q = inject do Count' a b q
+    Count tag countCol query = inject do Count' tag countCol query
+
+as ∷ Name Col → Query → Query
+as tag = para \case
+  ProjectAs'
+    { sources = sources
+    , targets = targets
+    , query = query
+    } → ProjectAs sources (prependCol tag <$> targets) (query ^. _2)
+  Filter' (prependPred tag → pred) query → Filter pred (query ^. _2)
+  query → inject $ fst <$> query
+  where
+    prependCol ∷ () ⇒ Name Col → (Name Col, d) → (Name Col, d)
+    prependCol tag = first ((tag <> ".") <>)
+
+    prependPred ∷ Name Col → Pred → Pred
+    prependPred tag = cata \case
+      Eq' (prepend → a) (prepend → b) → Eq a b
+      Ne' (prepend → a) (prepend → b) → Ne a b
+      Ge' (prepend → a) (prepend → b) → Ge a b
+      Le' (prepend → a) (prepend → b) → Le a b
+      p → inject p
+      where
+        prepend = \case
+          Fld (prependCol tag → fld) → Fld fld
+          ref → ref
+
+    prependQuery ∷ () ⇒ Name Col → Query → Query
+    prependQuery tag = cata \case
+      Filter' (prependPred tag → pred) q → inject $ Filter' pred q
+      q → inject q
