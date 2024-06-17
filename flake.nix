@@ -97,8 +97,8 @@
               };
 
               pre-commit.hooks = {
-                fourmolu.enable = true;
-                stylish-haskell.enable = true;
+                # fourmolu.enable = true;
+                # stylish-haskell.enable = true;
                 nixfmt.enable = true;
               };
             }];
