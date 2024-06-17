@@ -67,20 +67,20 @@ instance SchemaOf Ref where
     Val {} → Empty -- FIXME: use error "Empty" instead?
     Fld c → MkSchema $ toMapOf (folded % ifolded) [c]
 
-data Query' r where
-  ScanFile' ∷ {columns ∷ List (Name Col, Ty), fp ∷ FilePath} → Query' r
+data Query' q where
+  ScanFile' ∷ {columns ∷ List (Name Col, Ty), fp ∷ FilePath} → Query' q
   ProjectAs'
     ∷ { sources ∷ List (Name Col, Ty)
       , targets ∷ List (Name Col, Ty)
-      , query ∷ r
+      , query ∷ q
       }
-    → Query' r
-  Filter' ∷ Pred → r → Query' r
-  Join' ∷ r → r → Query' r
-  HashJoin' ∷ Map (Name Col) Ty → List (Name Col) → r → Query' r
-  GroupBy' ∷ Map (Name Col) Ty → Name Col → r → Query' r
-  Expand' ∷ Name Col → r → Query' r
-  Count' ∷ Name Col → Name Col → r → Query' r
+    → Query' q
+  Filter' ∷ Pred → q → Query' q
+  Join' ∷ q → q → Query' q
+  HashJoin' ∷ Map (Name Col) Ty → List (Name Col) → q → Query' q
+  GroupBy' ∷ Map (Name Col) Ty → Name Col → q → Query' q
+  Expand' ∷ Name Col → q → Query' q
+  Count' ∷ Name Col → Name Col → q → Query' q
   deriving (Functor, Foldable, Show)
 
 type Query = Fix Query'

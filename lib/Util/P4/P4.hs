@@ -121,6 +121,14 @@ makeLenses ''Mod
 alts ∷ ∀ f c a. (Foldable f) ⇒ f (P4 c a) → P4 c a
 alts = foldlOf' folded Alt Fail
 
+endBy0
+  ∷ ∀ f c sep a fa
+   . (fa ~ f a, AsEmpty fa, Cons fa fa a a)
+  ⇒ P4 c sep
+  → P4 c a
+  → P4 c (f a)
+endBy0 end p = fix \rec → alts [pure Empty, (:<) <$> (p <* end) <*> rec]
+
 -- | Parse one or more occurrences of 'p' separated by 'sep'.
 {-# INLINEABLE sepBy1 #-}
 sepBy1
@@ -151,7 +159,7 @@ lit c = Sat Mod {_cond = (== c), _prod = const ()}
 
 -- | Reserved keyword parser that matches a foldable collection of characters.
 kw ∷ (Eq c, Foldable f) ⇒ f c → P4 c ()
-kw = flip forM_ lit .> noErr
+kw = mapM_ lit .> noErr
 
 -- | Parser that does not produce an error.
 noErr ∷ P4 c a → P4 c a

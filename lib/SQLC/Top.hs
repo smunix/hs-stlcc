@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RoleAnnotations   #-}
 {-# LANGUAGE ViewPatterns      #-}
@@ -46,6 +45,8 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
           Array.listArray
             (0, lengthOf folded qs - 1)
             [(n, q ln) | (ln, (i, n, q)) ← zip [0 ..] qs]
+
+        qs ∷ [(Int, String, Int → Query)]
         qs =
           [ (0, "ScanFile", mkQ scanFileQuery (-1))
           , (1, "Project", mkQ projectQuery 0)
@@ -57,6 +58,7 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
           , (7, "Expand", mkQ expandQuery0 6)
           , (8, "Count", mkQ countQuery0 6)
           ]
+
         mkQ q i ln
           | i < ln = q (arr ! i ^. _2)
           | otherwise = error "failed to construct query"
@@ -66,10 +68,6 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
         Query.ScanFile
           [("Name", SQL.String), ("Age", SQL.I32), ("City", SQL.String)]
           "<filepath>"
-    projectQuery =
-      Query.ProjectAs
-        ["Name", "Age", "City"]
-        ["ID", "Maturity", "Location"]
     filterQuery0 =
       Query.Filter
         ( Query.Ne
@@ -95,7 +93,7 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
             )
         )
     -- joinQuery0 q = Query.Join (as "L" $ filterQuery0 q) (as "R" $ filterQuery1 q)
-    -- joinQuery0 q = Query.ProjectAs ["R.ID", "L.ID"] ["R", "L"] do Query.Join (as "L" $ filterQuery0 q) (as "R" $ filterQuery1 q)
+    -- joinQuery0 q = Query.ProjectAs ["R.ID", "L.ID"] ["R", "L"] do Query.Join (Query.as "L" $ filterQuery0 q) (Query.as "R" $ filterQuery1 q)
     joinQuery0 q =
       Query.ProjectAs ["L.ID", "L.Maturity"] ["ID", "Age"] do
         Query.Filter (Query.Eq "L.ID" "R.ID") do
@@ -112,3 +110,7 @@ io = traverseOf_ traversed (\(_i, (n, q)) → lower n q) (Array.assocs queries)
     countQuery0 q =
       Query.ProjectAs ["Count", "Maturity", "Location"] ["CountN", "Age", "City"] do
         Query.Count "G" "Count" q
+    projectQuery =
+      Query.ProjectAs
+        ["Name", "Age", "City"]
+        ["ID", "Maturity", "Location"]

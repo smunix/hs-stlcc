@@ -12,6 +12,7 @@ library
   exposed-modules:
       CPrim
       SQLC.Core
+      SQLC.CSV
       SQLC.IR
       SQLC.IR.Asm
       SQLC.IR.IR

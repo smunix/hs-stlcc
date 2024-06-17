@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase   #-}
-{-# LANGUAGE MultiWayIf   #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Util.P4.Char where
@@ -16,7 +14,7 @@ sat ∷ Fn Char Bool → P Char
 sat cond = Sat Mod {_cond = cond, _prod = id}
 
 dot ∷ P Char
-dot = sat (/= '\n')
+dot = sat (\c → not $ elemOf folded c "\n")
 
 sp ∷ P ()
 sp = lit ' '
@@ -30,17 +28,20 @@ ws1 = sp >> ws0
 nl ∷ P ()
 nl = lit '\n'
 
+tab ∷ P ()
+tab = lit '\t'
+
 char ∷ P Char
 char = sat (const True)
 
 upper ∷ P Char
-upper = sat (isUpper)
+upper = sat isUpper
 
 lower ∷ P Char
-lower = sat (isLower)
+lower = sat isLower
 
 digit ∷ P Int
-digit = sat isDigit <&> (ord .> subtract (ord '0'))
+digit = sat isDigit <&> ord .> subtract (ord '0')
 
 nat ∷ P Int
 nat = some digit <&> foldlOf' folded ((* 10) .> (+)) 0
@@ -57,13 +58,11 @@ float = alts [lit '-' *> (negate <$> block), lit '+' *> block, block]
             (castn → e) ← nat
             lit '.'
             d@(show .> length → n) ← nat
-            pure $ e + (toFrac (castn d) n)
+            pure $ e + toFrac (castn d) n
         , castn <$> nat
         ]
     toFrac = fix \rec !d !p →
-      if
-        | p <= 0    → d
-        | otherwise → rec (d / 10.0) (p - 1)
+      (if p <= 0 then d else rec (d / 10.0) (p - 1))
 
 word ∷ P String
 word = some $ sat isAlpha

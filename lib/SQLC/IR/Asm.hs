@@ -212,11 +212,11 @@ instance (m ~ Eff es, io :> es, st :> es) ⇒ With io st Term.Value m Value wher
   with ∷ IOE io → State Machine st → Term.Value → m Value
   with io st = \case
     Term.Value v → return v
-    Term.VId i →
+    Term.VId reg →
       State.get st
-        >>= view (values % at i) .> \case
+        >>= view (values % at reg) .> \case
           Just v → return v
-          Empty → effIO io do fail $ "With Term.Value: vid '" <> show i <> "' not found"
+          Empty → effIO io do fail $ "With Term.Value: vid '" <> show reg <> "' not found"
     Term.Select col record → do
       record ← with io st record
       record ^. fields % at col & \case
@@ -233,11 +233,11 @@ instance (m ~ Eff es, io :> es, st :> es) ⇒ With io st Term.Record m Record wh
   with ∷ IOE io → State Machine st → Term.Record → m Record
   with io st = cata \case
     Term.RecordList' (sequence → records) → foldOf folded <$> records
-    Term.RecordId' i →
+    Term.RecordId' reg →
       State.get st
-        >>= view (records % at i) .> \case
+        >>= view (records % at reg) .> \case
           Just r → return r
-          Empty → effIO io do fail $ "With Term.Record: rid '" <> show i <> "' not found"
+          Empty → effIO io do fail $ "With Term.Record: rid '" <> show reg <> "' not found"
     Term.Record' values → Record <$> traverseOf traversed (with io st) values
 
 exec ∷ ∀ a. Asm a → IO a
@@ -255,12 +255,13 @@ exec pgm = runEff \io → evalState (Empty @Machine) \st → walk io st pgm
       Then m k → walk io st m >>= (k .> walk io st)
       Stop → return ()
       Fail str → effIO io do fail str
-      Load fp → return $ Table sch _recs
+      Load fp → return tbl
         where
+          tbl = Table sch recs
           sch =
             MkSchema $
               toMapOf (folded % ifolded) [("Name", String), ("Age", I32), ("City", String)]
-          _recs =
+          recs =
             (toMapOf (folded % ifolded) .> Record)
               <$> [ [("Name", "Kinja"), ("Age", 6), ("City", "Montreal")]
                   , [("Name", "Paluku"), ("Age", 29), ("City", "Toronto")]
@@ -277,20 +278,20 @@ exec pgm = runEff \io → evalState (Empty @Machine) \st → walk io st pgm
         r ← walk io st m
         State.put st mach0
         return r
-      BindValue i val → State.modify st (values % at i ?~ val)
-      BindRecord i record → State.modify st (records % at i ?~ record)
-      BindHTable i hTable → State.modify st (hTables % at i ?~ hTable)
+      BindValue reg val → State.modify st (values % at reg ?~ val)
+      BindRecord reg record → State.modify st (records % at reg ?~ record)
+      BindHTable reg hTable → State.modify st (hTables % at reg ?~ hTable)
       EvalCondition cond → with io st cond
       EvalValue value → with io st value
       EvalRecord record → with io st record
-      GetHTable i →
+      GetHTable reg →
         State.get st
-          >>= view (hTables % at i)
-            .> maybe (effIO io do fail $ "GetHTable: id '" <> show i <> "' not found") return
-      ModHTable i mod →
+          >>= view (hTables % at reg)
+            .> maybe (effIO io do fail $ "GetHTable: id '" <> show reg <> "' not found") return
+      ModHTable reg mod →
         State.modify
           st
           ( hTables
-              % at i
-              %~ maybe (error $ "ModHTable: id '" <> show i <> "' not found") (mod .> Just)
+              % at reg
+              %~ maybe (error $ "ModHTable: id '" <> show reg <> "' not found") (mod .> Just)
           )
